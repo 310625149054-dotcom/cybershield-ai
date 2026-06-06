@@ -1,15 +1,28 @@
 import { useState } from "react";
+import axios from "axios";
 
 function URLChecker() {
   const [url, setUrl] = useState("");
+  const [result, setResult] = useState(null);
 
-  const handleAnalyze = () => {
-    alert(`Analyzing: ${url}`);
+  const handleAnalyze = async () => {
+    try {
+      const response = await axios.post(
+        "http://127.0.0.1:5000/analyze",
+        { url }
+      );
+
+      setResult(response.data);
+    } catch (error) {
+      console.error(error);
+      alert("Backend connection failed");
+    }
   };
 
   return (
     <div className="container mt-5">
       <div className="card shadow p-4">
+
         <h3>Phishing URL Checker</h3>
 
         <input
@@ -26,6 +39,14 @@ function URLChecker() {
         >
           Analyze URL
         </button>
+
+        {result && (
+          <div className="mt-4">
+            <h5>Risk Score: {result.risk}%</h5>
+            <h5>Result: {result.result}</h5>
+          </div>
+        )}
+
       </div>
     </div>
   );

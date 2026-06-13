@@ -1,9 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 
 function URLChecker() {
   const [url, setUrl] = useState("");
   const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  const loadHistory = async () => {
+    try {
+      const response = await axios.get(
+        "http://127.0.0.1:5000/history"
+      );
+
+      setHistory(response.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
 
   const handleAnalyze = async () => {
     try {
@@ -13,6 +30,7 @@ function URLChecker() {
       );
 
       setResult(response.data);
+      loadHistory();
     } catch (error) {
       console.error(error);
       alert("Backend connection failed");
@@ -21,6 +39,7 @@ function URLChecker() {
 
   return (
     <div className="container mt-5">
+
       <div className="card shadow p-4">
 
         <h3>Phishing URL Checker</h3>
@@ -47,7 +66,36 @@ function URLChecker() {
           </div>
         )}
 
+        <hr />
+
+        <h4>Scan History</h4>
+
+        <table className="table table-bordered">
+
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Risk</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            {history.map((item, index) => (
+              <tr key={index}>
+                <td>{item.url}</td>
+                <td>{item.risk}</td>
+                <td>{item.result}</td>
+              </tr>
+            ))}
+
+          </tbody>
+
+        </table>
+
       </div>
+
     </div>
   );
 }

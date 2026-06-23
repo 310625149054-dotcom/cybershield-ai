@@ -34,13 +34,24 @@ except Exception:
 
 
 def explain_url(url: str, result: str):
-    prompt = f"""
-    URL: {url}
 
-    Detection Result: {result}
+    if result == "Suspicious":
+        return """
+Threat Level: High
 
-    Explain why this URL is safe or suspicious.
-    Give a short cybersecurity recommendation.
-    """
+Explanation:
+This URL contains phishing-related indicators.
 
-    return _generate(prompt)
+Recommendation:
+Do not enter passwords or personal information.
+"""
+
+    return """
+Threat Level: Low
+
+Explanation:
+No major phishing indicators were detected.
+
+Recommendation:
+Always verify website authenticity before sharing information.
+"""

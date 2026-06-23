@@ -24,12 +24,20 @@ function URLChecker() {
 
   const handleAnalyze = async () => {
     try {
-      const response = await axios.post(
-        "http://127.0.0.1:5000/analyze",
-        { url }
-      );
+      const response = await fetch("http://127.0.0.1:5000/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ url })
+      });
 
-      setResult(response.data);
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      const data = await response.json();
+      setResult(data);
       loadHistory();
     } catch (error) {
       console.error(error);
@@ -63,6 +71,7 @@ function URLChecker() {
           <div className="mt-4">
             <h5>Risk Score: {result.risk}%</h5>
             <h5>Result: {result.result}</h5>
+            <p className="mt-2"><strong>Explanation:</strong> {result.explanation}</p>
           </div>
         )}
 

@@ -4,6 +4,8 @@ from flask_cors import CORS
 import sqlite3
 from datetime import datetime
 
+from gemini_helper import explain_url
+
 app = Flask(__name__)
 CORS(app)
 
@@ -21,6 +23,7 @@ def init_db():
         url TEXT,
         risk INTEGER,
         result TEXT,
+        explanation TEXT,
         created_at TEXT
     )
     """)
@@ -60,18 +63,21 @@ def analyze():
         risk = 20
         result = "Safe"
 
+    explanation = explain_url(url, result)
+
     # Save to database
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
     cursor.execute("""
-    INSERT INTO scans(url,risk,result,created_at)
-    VALUES(?,?,?,?)
+    INSERT INTO scans(url,risk,result,explanation,created_at)
+    VALUES(?,?,?,?,?)
     """,
     (
         url,
         risk,
         result,
+        explanation,
         datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ))
 
@@ -81,7 +87,8 @@ def analyze():
     return jsonify({
         "url": url,
         "risk": risk,
-        "result": result
+        "result": result,
+        "explanation": explanation
     })
 
 
@@ -92,7 +99,7 @@ def history():
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT url,risk,result,created_at
+    SELECT url,risk,result,explanation,created_at
     FROM scans
     ORDER BY id DESC
     """)
@@ -107,7 +114,8 @@ def history():
             "url": row[0],
             "risk": row[1],
             "result": row[2],
-            "date": row[3]
+            "explanation": row[3],
+            "date": row[4]
         })
 
     return jsonify(history)

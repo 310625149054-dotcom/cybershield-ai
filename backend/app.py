@@ -10,7 +10,12 @@ app = Flask(__name__)
 CORS(app)
 
 # Load ML model
-model = joblib.load("ml/phishing_model.pkl")
+try:
+    model = joblib.load("ml/phishing_model.pkl")
+    print("✅ ML Model Loaded Successfully")
+except Exception as e:
+    print("❌ Model Load Error:", e)
+    model = None
 
 
 def init_db():
@@ -49,47 +54,109 @@ def home():
 @app.route("/analyze", methods=["POST"])
 def analyze():
 
-    data = request.json
-    url = data.get("url", "")
+    try:
+        data = request.get_json()
 
-    # ML Prediction
-    features = extract_features(url)
-    prediction = model.predict(features)[0]
+        if not data:
+            return jsonify({"error": "No JSON data received"}), 400
 
-    if prediction == 1:
-        risk = 80
-        result = "Suspicious"
-    else:
-        risk = 20
-        result = "Safe"
+        url = data.get("url", "").strip()
 
-    explanation = explain_url(url, result)
+        if not url:
+            return jsonify({"error": "URL is required"}), 400
 
-    # Save to database
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+        print("Received URL:", url)
 
-    cursor.execute("""
-    INSERT INTO scans(url,risk,result,explanation,created_at)
-    VALUES(?,?,?,?,?)
-    """,
-    (
-        url,
-        risk,
-        result,
-        explanation,
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
+        # Feature Extraction
+        features = extract_features(url)
+        print("Features:", features)
 
-    conn.commit()
-    conn.close()
+        # Prediction
+        if model:
+            prediction = model.predict(features)[0]
+        else:
+            prediction = 0
 
-    return jsonify({
-        "url": url,
-        "risk": risk,
-        "result": result,
-        "explanation": explanation
-    })
+        print("Prediction:", prediction)
+
+        risk = 0
+
+        # ML Risk
+        if prediction == 1:
+            risk += 50
+
+        # Rule-Based Detection
+        suspicious_keywords = [
+            "login",
+            "verify",
+            "update",
+            "secure",
+            "account",
+            "signin",
+            "confirm",
+            "bank",
+            "payment",
+            "wallet",
+            "password"
+        ]
+
+        if any(word in url.lower() for word in suspicious_keywords):
+            risk += 30
+
+        suspicious_domains = [
+            ".xyz",
+            ".tk",
+            ".ml",
+            ".ga",
+            ".cf"
+        ]
+
+        if any(domain in url.lower() for domain in suspicious_domains):
+            risk += 20
+
+        if not url.startswith("https://"):
+            risk += 10
+
+        # Final Classification
+        if risk >= 70:
+            result = "Phishing"
+        elif risk >= 40:
+            result = "Suspicious"
+        else:
+            result = "Safe"
+
+        # Gemini Explanation
+        explanation = explain_url(url, result)
+
+        # Save to database
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        INSERT INTO scans(url,risk,result,explanation,created_at)
+        VALUES(?,?,?,?,?)
+        """,
+        (
+            url,
+            risk,
+            result,
+            explanation,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "url": url,
+            "risk": risk,
+            "result": result,
+            "explanation": explanation
+        })
+
+    except Exception as e:
+        print("❌ ANALYZE ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/history")

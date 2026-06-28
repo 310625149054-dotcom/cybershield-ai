@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 
 function URLChecker() {
+  const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
   const [url, setUrl] = useState("");
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
@@ -9,7 +10,7 @@ function URLChecker() {
   const loadHistory = async () => {
     try {
       const response = await axios.get(
-        "http://127.0.0.1:5000/history"
+        `${API_URL}/history`
       );
 
       setHistory(response.data);
@@ -24,20 +25,11 @@ function URLChecker() {
 
   const handleAnalyze = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ url })
+      const response = await axios.post(`${API_URL}/analyze`, {
+        url
       });
 
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-
-      const data = await response.json();
-      setResult(data);
+      setResult(response.data);
       loadHistory();
     } catch (error) {
       console.error(error);

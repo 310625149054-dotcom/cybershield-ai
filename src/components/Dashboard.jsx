@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 
 function Dashboard() {
+  const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
   const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    loadHistory();
+    //loadHistory();
   }, []);
 
   const loadHistory = async () => {
     const response = await axios.get(
-      "http://127.0.0.1:5000/history"
+      `${API_URL}/history`
     );
 
     setHistory(response.data);

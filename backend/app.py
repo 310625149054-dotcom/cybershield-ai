@@ -1,23 +1,21 @@
 import joblib
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import sqlite3
 from datetime import datetime
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
-from gemini_helper import explain_url
+try:
+    from gemini_helper import explain_url
+except:
+    explain_url = None
 
 app = Flask(__name__)
 CORS(app)
 
-# Load ML model
-try:
-    model = joblib.load("ml/phishing_model.pkl")
-    print("✅ ML Model Loaded Successfully")
-except Exception as e:
-    print("❌ Model Load Error:", e)
-    model = None
 
-
+# ======================
+# DATABASE
+# ======================
 def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -37,7 +35,24 @@ def init_db():
     conn.close()
 
 
-# Extract features for ML model
+# Create DB when app starts
+init_db()
+
+
+# ======================
+# LOAD MODEL
+# ======================
+try:
+    model = joblib.load("ml/phishing_model.pkl")
+    print("✅ ML Model Loaded Successfully")
+except Exception as e:
+    print("❌ Model Load Error:", e)
+    model = None
+
+
+# ======================
+# FEATURE EXTRACTION
+# ======================
 def extract_features(url):
     length = len(url)
     dots = url.count(".")
@@ -46,46 +61,41 @@ def extract_features(url):
     return [[length, dots, has_https]]
 
 
+# ======================
+# HOME
+# ======================
 @app.route("/")
 def home():
     return "CyberShield AI Backend Running"
 
 
+# ======================
+# ANALYZE URL
+# ======================
 @app.route("/analyze", methods=["POST"])
 def analyze():
-
     try:
         data = request.get_json()
 
         if not data:
-            return jsonify({"error": "No JSON data received"}), 400
+            return jsonify({"error": "No JSON received"}), 400
 
         url = data.get("url", "").strip()
 
         if not url:
             return jsonify({"error": "URL is required"}), 400
 
-        print("Received URL:", url)
-
-        # Feature Extraction
         features = extract_features(url)
-        print("Features:", features)
 
-        # Prediction
+        prediction = 0
         if model:
             prediction = model.predict(features)[0]
-        else:
-            prediction = 0
-
-        print("Prediction:", prediction)
 
         risk = 0
 
-        # ML Risk
         if prediction == 1:
             risk += 50
 
-        # Rule-Based Detection
         suspicious_keywords = [
             "login",
             "verify",
@@ -117,7 +127,6 @@ def analyze():
         if not url.startswith("https://"):
             risk += 10
 
-        # Final Classification
         if risk >= 70:
             result = "Phishing"
         elif risk >= 40:
@@ -125,16 +134,23 @@ def analyze():
         else:
             result = "Safe"
 
-        # Gemini Explanation
-        explanation = explain_url(url, result)
+        # Gemini explanation
+        try:
+            if explain_url:
+                explanation = explain_url(url, result)
+            else:
+                explanation = f"This URL is classified as {result}."
+        except:
+            explanation = f"This URL is classified as {result}."
 
         # Save to database
         conn = sqlite3.connect("database.db")
         cursor = conn.cursor()
 
         cursor.execute("""
-        INSERT INTO scans(url,risk,result,explanation,created_at)
-        VALUES(?,?,?,?,?)
+        INSERT INTO scans
+        (url,risk,result,explanation,created_at)
+        VALUES (?,?,?,?,?)
         """,
         (
             url,
@@ -155,41 +171,45 @@ def analyze():
         })
 
     except Exception as e:
-        print("❌ ANALYZE ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
 
+# ======================
+# HISTORY
+# ======================
 @app.route("/history")
 def history():
+    try:
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
 
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+        cursor.execute("""
+        SELECT url,risk,result,explanation,created_at
+        FROM scans
+        ORDER BY id DESC
+        """)
 
-    cursor.execute("""
-    SELECT url,risk,result,explanation,created_at
-    FROM scans
-    ORDER BY id DESC
-    """)
+        rows = cursor.fetchall()
+        conn.close()
 
-    rows = cursor.fetchall()
-    conn.close()
+        history = []
 
-    history = []
+        for row in rows:
+            history.append({
+                "url": row[0],
+                "risk": row[1],
+                "result": row[2],
+                "explanation": row[3],
+                "date": row[4]
+            })
 
-    for row in rows:
-        history.append({
-            "url": row[0],
-            "risk": row[1],
-            "result": row[2],
-            "explanation": row[3],
-            "date": row[4]
-        })
+        return jsonify(history)
 
-    return jsonify(history)
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
 
-
-# Create database when app starts
-init_db()
 
 if __name__ == "__main__":
     app.run(debug=True)
